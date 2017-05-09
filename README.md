@@ -1,1 +1,1 @@
-# Bamazon
+This is my first commit to Bamazon
