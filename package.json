@@ -5,6 +5,7 @@
   "main": "bamazonCustomer.js",
   "dependencies": {
     "dotenv": "^4.0.0",
+    "exit": "^0.1.2",
     "inquirer": "^3.0.6",
     "mysql": "^2.13.0"
   },

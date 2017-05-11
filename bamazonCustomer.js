@@ -1,15 +1,17 @@
-
+//npm's
 require("dotenv").config();
 var password = process.env.password;
 var mysql = require("mysql");
 var inquirer = require("inquirer");
-
+var exit = require("exit");
+// variables I will use
 var itemNumber = 0;
+var itemName = "";
 var itemQuantity = 0;
 var itemPrice = 0;
 var stockQuantity = 0;
 var order = [];
-
+// Connect database
 var connection = mysql.createConnection(
 	{	host: "localhost",
 		port: 3306,
@@ -22,7 +24,7 @@ connection.connect(function(err) {
 	if (err) throw err;
 //	console.log("connected as id " + connection.threadId);
 });
-
+// List of products that are available
 connection.query("SELECT item_id, product_name, price FROM products", function(err, res) {
  	if (err) throw err;
 //	console.log(res);
@@ -35,9 +37,8 @@ connection.query("SELECT item_id, product_name, price FROM products", function(e
  	}
  	selectItems();
 });
-
+// Working through the product selection process
 var selectItems = function() {
-
 	inquirer.prompt([{
 	    name: "item",
  		type: "input",
@@ -66,13 +67,13 @@ var selectItems = function() {
 		inquirer.prompt([{
 			name: "answer",
 			type: "confirm",
-			message: "You would like " + answer.quantity + " of " + "item " +
-				answer.item + ", right?"
+			message: "You selected " + answer.quantity + " of item no. " +
+				answer.item + ", correct?"
 		}]).then(function(response) {
 			if (response.answer) {
 				itemNumber = answer.item;
 				itemQuantity = answer.quantity;
-				nextStep();
+				checkQty();
 			}
 			else {
 				console.log("Let's try this again.");
@@ -81,56 +82,79 @@ var selectItems = function() {
 		});
 	});
 };
-
-function nextStep() {
-	connection.query("SELECT stock_quantity FROM products WHERE item_id = '"+itemNumber+"'", function(err, res) {
+// Checking if we have enough product and asking what to do if we don't
+var checkQty = function() {
+	connection.query("SELECT product_name, price, stock_quantity FROM products WHERE item_id = '"+itemNumber+"'", function(err, res) {
 	 	if (err) throw err;
+	 	itemName = (res[0].product_name);
+		itemPrice = (res[0].price);
 		stockQuantity = (res[0].stock_quantity);
-		if (stockQuantity < itemQuantity) {
+		if (stockQuantity < itemQuantity && stockQuantity > 0) {
 			console.log("There is insufficient stock to fill your order.\nWe do have " +
 				stockQuantity + " available.");
 			inquirer.prompt([{
 				name: "proceed",
 				type: "confirm",
-				message: "You would like to order the remaining " + stockQuantity + "?"
+				message: "Would you like to order the remaining " + stockQuantity + "?"
 			}]).then(function(response) {
 				if (response.proceed) {
 					itemQuantity = stockQuantity;
-//					console.log(itemQuantity);
+					updateData();					
+				}
+				else {
+					shopOrCheckOut();
 				}
 			});
 		}
-		inquirer.prompt([{
-			name: "newOrder",
-			type: "confirm",
-			message: "Would like to chose another item?  If \"n\", I will check you out."
-		}]).then(function(response) {
-			if (response.newOrder) {
-				console.log(itemNumber + " " + itemQuantity + " " + itemPrice)
-//				order.push(itemNumber);
-//				order.push(itemQuantity);
-//				order.push(itemPrice);
-//				selectItems();
-			}
-			else {
-				console.log("Let's check you out");
-//				printOrder();
-			}
-		});	
+		else if (stockQuantity === 0) {
+			console.log("There is no stock available to fill your order.");
+			shopOrCheckOut();
+		}
+		else {
+			updateData();
+		}
 	});
 };
-
-//process.exit(code);
-
+// Updating the selection array and then updating the database with present selection
+var updateData = function() {
+	order.push(itemNumber);
+	order.push(itemName);					
+	order.push(itemQuantity);
+	order.push(itemPrice);
+	connection.query("UPDATE products SET stock_quantity = stock_quantity - '"+itemQuantity+"' WHERE item_id = '"+itemNumber+"'", function(err, res) {
+	 	if (err) throw err;
+	});
+	shopOrCheckOut();
+}
+// Product ordered so contiune to shop or head to checkout
+var shopOrCheckOut = function() {
+	inquirer.prompt([{
+		name: "newOrder",
+		type: "confirm",
+		message: "Would like to choose another item?  If \"n\", I will check you out."
+	}]).then(function(response) {
+		if (response.newOrder) {
+			selectItems();
+		}
+		else {
+			printOrder();
+		}
+	});
+};	
+// Printing what was ordered
 function printOrder() {
 	console.log("\n Your order consists of the following:\n");
 	var p = 1;
 	var t = 0;
-	for ( i = 0 ; i < order.length ; (i=i+3) ) {
-    	var tot = order[i] * order[i+2];
-    	console.log(" " + p + ". " + order[i+1] + ":" + " qty of " + order[i] + " at $" + order[i+2] + " each = $" + tot);
+	for ( i = 0 ; i < order.length ; (i=i+4) ) {
+    	var tot = order[i+2] * order[i+3];
+    	tot = tot.toFixed(2);
+    	console.log("  " + p + ". Item #" + order[i] + " " + order[i+1] + ", qty of " + order[i+2] + " at $" + order[i+3] + " each = $" + tot);
     	p++;
+ 	  	tot = parseFloat(tot);
     	t = t + tot;
 	}
-	console.log("\n The total cost of your order: $" + t + "\n");
+	console.log("\n    The total cost of your order is: $" + t + "\n");
+	exit(5); 
 };
+

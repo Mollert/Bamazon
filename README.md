@@ -1,1 +1,1 @@
-This is my first commit to Bamazon
+Looks good.  All that is left is clean-up.  Maybe try challenge number2
